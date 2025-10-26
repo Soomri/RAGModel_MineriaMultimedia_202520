@@ -1,1 +1,9 @@
 pandas
+numpy
+sentence-transformers
+chromadb
+transformers
+ipykernel
+chroma-migrate
+pyarrow
+faiss-cpu
