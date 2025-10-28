@@ -76,7 +76,7 @@ class BaseRetriever(ABC):
         - Lista de diccionarios con: {rank, index, score, text, metadata}
         """
         if not self.is_fitted:
-            raise RuntimeError("❌ Retriever no entrenado. Ejecuta fit() primero.")
+            raise RuntimeError("Retriever no entrenado. Ejecuta fit() primero.")
         
         # Recuperar índices y scores
         results = self.retrieve(query, top_k)
@@ -261,7 +261,7 @@ class DenseRetriever(BaseRetriever):
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError:
-            raise ImportError("❌ sentence-transformers no instalado. Ejecuta: pip install sentence-transformers")
+            raise ImportError("sentence-transformers no instalado. Ejecuta: pip install sentence-transformers")
         
         self.model = SentenceTransformer(self.model_name)
         self.embeddings = self.model.encode(
@@ -311,9 +311,9 @@ class HybridRetriever(BaseRetriever):
         
         if weights:
             if len(weights) != len(self.retrievers):
-                raise ValueError("❌ Número de pesos debe coincidir con número de retrievers")
+                raise ValueError("Número de pesos debe coincidir con número de retrievers")
             if abs(sum(weights) - 1.0) > 1e-6:
-                warnings.warn("⚠️ Los pesos no suman 1.0, normalizando...")
+                warnings.warn("Los pesos no suman 1.0, normalizando...")
                 total = sum(weights)
                 weights = [w/total for w in weights]
         else:
@@ -395,7 +395,7 @@ class RetrieverFactory:
             return HybridRetriever(chunks, metadata, **kwargs)
         
         else:
-            raise ValueError(f"❌ Tipo de retriever desconocido: {retriever_type}")
+            raise ValueError(f"Tipo de retriever desconocido: {retriever_type}")
     
     @staticmethod
     def create_and_fit(retriever_type: str, chunks: List[str], metadata: List[Dict] = None, **kwargs):
@@ -430,14 +430,14 @@ def compare_retrievers(query: str, retrievers: Dict[str, BaseRetriever], top_k: 
     - top_k: Número de resultados
     """
     print(f"\n{'='*80}")
-    print(f"🔎 COMPARACIÓN DE RETRIEVERS")
+    print(f"COMPARACIÓN DE RETRIEVERS")
     print(f"{'='*80}")
     print(f"Query: '{query}'")
     print(f"Top-K: {top_k}\n")
     
     for name, retriever in retrievers.items():
         print(f"\n{'-'*80}")
-        print(f"📊 {name.upper()}")
+        print(f" {name.upper()}")
         print(f"{'-'*80}")
         
         results = retriever.query(query, top_k)
@@ -523,21 +523,21 @@ if __name__ == "__main__":
     ]
     
     # Crear y entrenar diferentes retrievers
-    print("🔧 Creando retrievers...\n")
+    print("Creando retrievers...\n")
     
     bm25 = RetrieverFactory.create_and_fit('bm25', chunks, metadata, k1=1.5, b=0.75)
-    print("✅ BM25 Retriever creado")
+    print("BM25 Retriever creado")
     
     tfidf = RetrieverFactory.create_and_fit('tfidf', chunks, metadata, max_features=1000)
-    print("✅ TF-IDF Retriever creado")
+    print("TF-IDF Retriever creado")
     
     # Dense requiere sentence-transformers (opcional)
     try:
         dense = RetrieverFactory.create_and_fit('dense', chunks, metadata)
-        print("✅ Dense Retriever creado")
+        print("Dense Retriever creado")
         has_dense = True
     except ImportError:
-        print("⚠️ Dense Retriever no disponible (falta sentence-transformers)")
+        print("Dense Retriever no disponible (falta sentence-transformers)")
         has_dense = False
     
     # Crear retriever híbrido
@@ -557,7 +557,7 @@ if __name__ == "__main__":
         )
     
     hybrid.fit()
-    print("✅ Hybrid Retriever creado\n")
+    print("Hybrid Retriever creado\n")
     
     # Consulta de ejemplo
     query = "Who saves Bella from danger?"
@@ -585,10 +585,10 @@ if __name__ == "__main__":
         [5]   # Query 2: chunk 5 es relevante
     ]
     
-    print("\n📊 Evaluando BM25...")
+    print("\n Evaluando BM25...")
     evaluate_retriever(bm25, test_queries, ground_truth, k=3)
     
-    print("\n📊 Evaluando TF-IDF...")
+    print("\n Evaluando TF-IDF...")
     evaluate_retriever(tfidf, test_queries, ground_truth, k=3)
     
-    print("\n✅ Demo completada")
+    print("\n Demo completada")
