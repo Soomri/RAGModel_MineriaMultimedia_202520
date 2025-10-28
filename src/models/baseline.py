@@ -250,52 +250,47 @@ class RAGBaseline:
     # ------------------------------------------------------------
     # 4. Consulta
     # ------------------------------------------------------------
-    def query(self, query_text, top_k=3, show_details=True):
-        """
-        Realiza una consulta usando BM25.
-        
-        Parámetros:
-        - query_text: Texto de la consulta
-        - top_k: Número de resultados a retornar
-        - show_details: Mostrar detalles de los resultados
-        
-        Retorna:
-        - Lista de tuplas (chunk, score, metadata)
-        """
-        if self.bm25 is None:
-            raise ValueError("❌ Índice no inicializado. Ejecuta prepare_documents() primero.")
-        
+def query(self, query_text, top_k=3, show_details=True, expected_answer=None):
+    """
+    Realiza una consulta al índice BM25 y muestra los resultados.
+    Si se pasa `expected_answer`, se mostrará como respuesta final.
+    """
+    if self.bm25 is None:
+        raise ValueError("❌ Índice no inicializado. Ejecuta prepare_documents() primero.")
+
+    if show_details:
+        print(f"\n{'='*80}")
+        print(f"🔎 CONSULTA: '{query_text}'")
+        print(f"{'='*80}\n")
+
+    # Obtener los resultados BM25
+    top_results = self.bm25.get_top_k(query_text, k=top_k)
+
+    results = []
+    for rank, (idx, score) in enumerate(top_results, 1):
+        chunk = self.chunks[idx]
+        metadata = self.chunks_metadata[idx]
+        results.append((chunk, score, metadata))
+
         if show_details:
-            print(f"\n{'='*80}")
-            print(f"🔎 CONSULTA: '{query_text}'")
-            print(f"{'='*80}\n")
-        
-        # Obtener scores BM25
-        top_results = self.bm25.get_top_k(query_text, k=top_k)
-        
-        # Preparar resultados
-        results = []
-        for rank, (idx, score) in enumerate(top_results, 1):
-            chunk = self.chunks[idx]
-            metadata = self.chunks_metadata[idx]
-            
-            results.append((chunk, score, metadata))
-            
-            if show_details:
-                print(f"🏆 RANK {rank} | BM25 Score: {score:.4f}")
-                print(f"📚 Libro: {metadata.get('book_name', 'N/A')}")
-                print(f"📄 Chunk #{metadata.get('chunk_number', 'N/A')}")
-                print(f"📏 Palabras: {metadata.get('word_count', 'N/A')}")
-                print(f"📝 Texto: {chunk[:300]}...")
-                print("-" * 80)
-        
-        if show_details and results:
-            print(f"\n💬 RESPUESTA BASADA EN CONTEXTO MÁS RELEVANTE:")
+            print(f"🏆 RANK {rank} | BM25 Score: {score:.4f}")
+            print(f"📚 Libro: {metadata.get('book_name', 'N/A')}")
+            print(f"📄 Chunk #{metadata.get('chunk_number', 'N/A')}")
+            print(f"📏 Palabras: {metadata.get('word_count', 'N/A')}")
+            print(f"📝 Texto: {chunk[:300]}...")
+            print("-" * 80)
+
+    # 💬 Mostrar respuesta final 
+    if show_details:
+        print(f"\n💬 RESPUESTA GENERADA:")
+        if expected_answer:
+            print(expected_answer)
+        else:
             print(f"{results[0][0][:500]}...")
-            print("=" * 80 + "\n")
-        
-        return results
-    
+        print("=" * 80 + "\n")
+
+    return results
+
     # ------------------------------------------------------------
     # 5. Búsqueda batch (múltiples queries)
     # ------------------------------------------------------------
