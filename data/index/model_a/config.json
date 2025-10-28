@@ -1,0 +1,5 @@
+{
+  "model_name": "sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
+  "embedding_dim": 384,
+  "total_chunks": 28
+}
