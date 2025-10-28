@@ -67,15 +67,15 @@ class RAGModelC:
         folder_path = os.path.join(self.preprocessed_base_dir, chunk_config)
         
         if not os.path.exists(folder_path):
-            raise FileNotFoundError(f"❌ No se encuentra la carpeta: {folder_path}")
+            raise FileNotFoundError(f"No se encuentra la carpeta: {folder_path}")
         
-        print(f"📁 Carpeta: {folder_path}")
+        print(f"Carpeta: {folder_path}")
         
         # Cargar usando la función de utils
         records = load_chunks_from_folder(folder_path)
         
         if not records:
-            raise ValueError(f"❌ No se encontraron chunks en {folder_path}")
+            raise ValueError(f"No se encontraron chunks en {folder_path}")
         
         df = pd.DataFrame.from_records(records)
         
@@ -84,8 +84,8 @@ class RAGModelC:
         self.chunks_metadata = df.to_dict('records')
         self.original_count = len(self.chunks)
         
-        print(f"✅ Cargados {self.original_count} chunks")
-        print(f"📊 Configuración: {chunk_config}")
+        print(f"Cargados {self.original_count} chunks")
+        print(f"Configuración: {chunk_config}")
         print(f"{'='*80}\n")
         
         return self.chunks
@@ -99,13 +99,13 @@ class RAGModelC:
         Mantiene el chunk más representativo de cada grupo similar.
         """
         if not self.chunks:
-            raise ValueError("❌ No hay chunks cargados. Ejecuta load_preprocessed_chunks() primero.")
+            raise ValueError("No hay chunks cargados. Ejecuta load_preprocessed_chunks() primero.")
         
         print(f"\n{'='*80}")
-        print(f"🧩 DEDUPLICACIÓN DE CHUNKS")
+        print(f"DEDUPLICACIÓN DE CHUNKS")
         print(f"{'='*80}")
-        print(f"📊 Chunks originales: {len(self.chunks)}")
-        print(f"🎯 Umbral de similitud: {self.similarity_threshold}")
+        print(f"Chunks originales: {len(self.chunks)}")
+        print(f"Umbral de similitud: {self.similarity_threshold}")
         
         # Crear representación TF-IDF temporal para comparación
         temp_vectorizer = TfidfVectorizer(
@@ -118,13 +118,13 @@ class RAGModelC:
         try:
             temp_X = temp_vectorizer.fit_transform(self.chunks)
         except ValueError as e:
-            print(f"⚠️ Error en vectorización: {e}")
-            print("⚠️ Continuando sin deduplicación...")
+            print(f"Error en vectorización: {e}")
+            print("Continuando sin deduplicación...")
             self.deduplicated_count = len(self.chunks)
             return self.chunks
         
         # Calcular matriz de similitud
-        print("⚙️ Calculando similitudes...")
+        print("Calculando similitudes...")
         similarity_matrix = cosine_similarity(temp_X)
         
         # Identificar chunks únicos
@@ -158,10 +158,10 @@ class RAGModelC:
         
         reduction_pct = (1 - self.deduplicated_count / self.original_count) * 100
         
-        print(f"✅ Deduplicación completada")
-        print(f"📉 Chunks eliminados: {duplicates_count}")
-        print(f"📊 Chunks únicos: {self.deduplicated_count}/{self.original_count}")
-        print(f"📈 Reducción: {reduction_pct:.1f}%")
+        print(f"Deduplicación completada")
+        print(f"Chunks eliminados: {duplicates_count}")
+        print(f"Chunks únicos: {self.deduplicated_count}/{self.original_count}")
+        print(f"Reducción: {reduction_pct:.1f}%")
         print(f"{'='*80}\n")
         
         return self.chunks
@@ -174,10 +174,10 @@ class RAGModelC:
         Crea el índice TF-IDF para los chunks deduplicados.
         """
         if not self.chunks:
-            raise ValueError("❌ No hay chunks para indexar.")
+            raise ValueError("No hay chunks para indexar.")
         
         print(f"\n{'='*80}")
-        print(f"🔧 CREACIÓN DE ÍNDICE TF-IDF")
+        print(f"CREACIÓN DE ÍNDICE TF-IDF")
         print(f"{'='*80}")
         
         self.vectorizer = TfidfVectorizer(
@@ -190,9 +190,9 @@ class RAGModelC:
         
         self.X = self.vectorizer.fit_transform(self.chunks)
         
-        print(f"✅ Índice creado")
-        print(f"📊 Documentos: {self.X.shape[0]}")
-        print(f"📊 Features: {self.X.shape[1]}")
+        print(f"Índice creado")
+        print(f"Documentos: {self.X.shape[0]}")
+        print(f"Features: {self.X.shape[1]}")
         print(f"{'='*80}\n")
         
         return self.vectorizer, self.X
@@ -221,9 +221,9 @@ class RAGModelC:
         self.create_index()
         
         print(f"\n{'#'*80}")
-        print(f"# ✅ PIPELINE COMPLETADO")
+        print(f"# PIPELINE COMPLETADO")
         print(f"{'#'*80}")
-        print(f"📊 Resumen:")
+        print(f"Resumen:")
         print(f"  • Chunks originales:   {self.original_count}")
         print(f"  • Chunks deduplicados: {self.deduplicated_count}")
         print(f"  • Reducción:           {(1 - self.deduplicated_count/self.original_count)*100:.1f}%")
@@ -246,11 +246,11 @@ class RAGModelC:
         - Lista de tuplas (chunk, score, metadata)
         """
         if self.vectorizer is None or self.X is None:
-            raise ValueError("❌ Índice no inicializado. Ejecuta prepare_documents() primero.")
+            raise ValueError("Índice no inicializado. Ejecuta prepare_documents() primero.")
         
         if show_details:
             print(f"\n{'='*80}")
-            print(f"🔎 CONSULTA: '{query_text}'")
+            print(f"CONSULTA: '{query_text}'")
             print(f"{'='*80}\n")
         
         # Vectorizar consulta
@@ -272,15 +272,15 @@ class RAGModelC:
             results.append((chunk, score, metadata))
             
             if show_details:
-                print(f"🏆 RANK {rank} | Score: {score:.4f}")
-                print(f"📚 Libro: {metadata.get('book_name', 'N/A')}")
-                print(f"📄 Chunk #{metadata.get('chunk_number', 'N/A')}")
-                print(f"📏 Palabras: {metadata.get('word_count', 'N/A')}")
-                print(f"📝 Texto: {chunk[:300]}...")
+                print(f"RANK {rank} | Score: {score:.4f}")
+                print(f"Libro: {metadata.get('book_name', 'N/A')}")
+                print(f"Chunk #{metadata.get('chunk_number', 'N/A')}")
+                print(f"Palabras: {metadata.get('word_count', 'N/A')}")
+                print(f"Texto: {chunk[:300]}...")
                 print("-" * 80)
         
         if show_details:
-            print(f"\n💬 RESPUESTA BASADA EN CONTEXTO MÁS RELEVANTE:")
+            print(f"\n RESPUESTA BASADA EN CONTEXTO MÁS RELEVANTE:")
             print(f"{results[0][0][:500]}...")
             print("=" * 80 + "\n")
         
@@ -303,7 +303,7 @@ class RAGModelC:
         vectorizer_dedup = self.vectorizer
         
         # Crear índice sin deduplicación
-        print("🔄 Recreando índice SIN deduplicación...")
+        print("Recreando índice SIN deduplicación...")
         
         # Recargar chunks originales
         temp_records = load_chunks_from_folder(
@@ -314,12 +314,12 @@ class RAGModelC:
         vectorizer_no_dedup = TfidfVectorizer(stop_words="english", max_features=5000)
         X_no_dedup = vectorizer_no_dedup.fit_transform(chunks_original)
         
-        print(f"✅ Índices creados")
+        print(f"Índices creados")
         print(f"  • Sin dedup: {X_no_dedup.shape[0]} chunks")
         print(f"  • Con dedup: {X_dedup.shape[0]} chunks\n")
         
         # Consultar ambos
-        print(f"🔎 Consulta: '{query_text}'\n")
+        print(f"Consulta: '{query_text}'\n")
         
         print("=" * 80)
         print("SIN DEDUPLICACIÓN")
@@ -359,7 +359,7 @@ class RAGModelC:
         }
         
         print(f"\n{'='*80}")
-        print(f"📊 ESTADÍSTICAS DEL MODELO C")
+        print(f"ESTADÍSTICAS DEL MODELO C")
         print(f"{'='*80}")
         for key, value in stats.items():
             print(f"  • {key.replace('_', ' ').title()}: {value}")
