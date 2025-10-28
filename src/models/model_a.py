@@ -72,9 +72,9 @@ class RAGModelA:
         folder_path = os.path.join(self.preprocessed_base_dir, chunk_config)
         
         if not os.path.exists(folder_path):
-            raise FileNotFoundError(f"❌ No se encuentra la carpeta: {folder_path}")
+            raise FileNotFoundError(f"No se encuentra la carpeta: {folder_path}")
         
-        print(f"📁 Carpeta: {folder_path}")
+        print(f" Carpeta: {folder_path}")
         
         records = load_chunks_from_folder(folder_path)
         

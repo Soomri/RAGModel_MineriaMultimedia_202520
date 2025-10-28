@@ -1,4 +1,4 @@
-# 🧩 redundancy.py — reducción de redundancia y selección de chunks relevantes
+# redundancy.py — reducción de redundancia y selección de chunks relevantes
 
 from sentence_transformers import SentenceTransformer, util
 import numpy as np

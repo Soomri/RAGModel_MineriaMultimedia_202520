@@ -3,7 +3,7 @@ import re
 import json
 from typing import List
 
-# 🧩 chunking.py — Generación de chunks con solapamiento (.txt y .json)
+# chunking.py — Generación de chunks con solapamiento (.txt y .json)
 
 
 def clean_text(text: str) -> str:
@@ -49,7 +49,7 @@ def read_json_text(filepath: str) -> str:
             return str(data)
 
     except Exception as e:
-        print(f"⚠️ Error leyendo {filepath}: {e}")
+        print(f"Error leyendo {filepath}: {e}")
         return ""
 
 
@@ -62,8 +62,8 @@ def process_documents(base_input: str, base_output: str, chunk_size: int = 400, 
     output_folder = os.path.join(base_output, f"processed_{chunk_size}_{overlap}")
     os.makedirs(output_folder, exist_ok=True)
 
-    print(f"\n📂 Procesando documentos con chunk_size={chunk_size}, overlap={overlap}")
-    print(f"📁 Carpeta destino: {output_folder}\n")
+    print(f"\n Procesando documentos con chunk_size={chunk_size}, overlap={overlap}")
+    print(f" Carpeta destino: {output_folder}\n")
 
     for filename in os.listdir(base_input):
         input_path = os.path.join(base_input, filename)
@@ -85,9 +85,9 @@ def process_documents(base_input: str, base_output: str, chunk_size: int = 400, 
             for i, chunk in enumerate(chunks):
                 f.write(f'--- CHUNK {i+1} ---\n{chunk}\n\n')
 
-        print(f"✅ {filename}: {len(chunks)} chunks creados.")
+        print(f" {filename}: {len(chunks)} chunks creados.")
 
-    print(f"\n🎯 Proceso completado para {chunk_size}-{overlap}. Archivos guardados en: {output_folder}\n")
+    print(f"\n Proceso completado para {chunk_size}-{overlap}. Archivos guardados en: {output_folder}\n")
 
 
 if __name__ == "__main__":
