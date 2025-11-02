@@ -279,10 +279,10 @@ class RAGModelC:
                 print(f"Texto: {chunk[:300]}...")
                 print("-" * 80)
         
-        if show_details:
-            print(f"\n RESPUESTA BASADA EN CONTEXTO MÁS RELEVANTE:")
-            print(f"{results[0][0][:500]}...")
-            print("=" * 80 + "\n")
+        #if show_details:
+          #  print(f"\n RESPUESTA BASADA EN CONTEXTO MÁS RELEVANTE:")
+           # print(f"{results[0][0][:500]}...")
+           # print("=" * 80 + "\n")
         
         return results
 

@@ -2,12 +2,14 @@ chromadb
 transformers
 ipykernel
 chroma-migrate
-pyarrow
+pyarrow>=15.0.0
 faiss-cpu
 numpy>=1.26.0
 pandas>=2.2.0
 torch>=2.2.0
 sentence-transformers>=2.7.0
+faiss-cpu>=1.7.0
+# faiss-gpu>=1.7.0
 rank-bm25>=0.2.2
 scikit-learn>=1.4.0
 tqdm>=4.66.0

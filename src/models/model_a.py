@@ -662,6 +662,12 @@ rag_a.load_index("data/index/model_a")
 
 # Consultar
 results = rag_a.query("Who is Bella?", top_k=5)
+queries = [
+    "Who is Bella?",
+    "Who saves Bella from the van?",
+    "Which Cullen family member is a doctor?",
+    "Where does Bella move to?",
+]
 
 # Batch
 batch_results = rag_a.batch_query(queries, top_k=3)

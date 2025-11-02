@@ -1,0 +1,3 @@
+Query,Recall_Base,Recall_Baseline,Recall_B,Recall_C,Precision_Base,Precision_Baseline,Precision_B,Precision_C,MRR_Base,MRR_Baseline,MRR_B,MRR_C,Recall_A,Precision_A,MRR_A
+Who saves Bella from the van?,1.0,0.2,0.2,0.2,1.0,0.2,0.2,0.2,1.0,1.0,1.0,1.0,0.0,0.0,0.0
+Which Cullen family member is a doctor?,1.0,0.3333333333333333,0.3333333333333333,0.3333333333333333,0.6,0.2,0.2,0.2,1.0,1.0,1.0,1.0,0.3333333333333333,0.2,0.5
