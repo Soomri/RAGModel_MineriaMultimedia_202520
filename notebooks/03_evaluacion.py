@@ -39,9 +39,10 @@ project_root = os.path.abspath("..")
 src_path = os.path.join(project_root, "src")
 if src_path not in sys.path:
     sys.path.append(src_path)
-print("✅ Project root:", project_root)
+print("Project root:", project_root)
+
 # ===================================
-# 1. CARGAR DATOS
+# CARGAR DATOS
 # ===================================
 BASE_PREPROCESSED = os.path.join(project_root, "data", "preprocessed")
 folders = sorted([
@@ -61,18 +62,19 @@ documents = df["text"].astype(str).tolist()
 # Crear mapeo de texto -> índice para comparación consistente
 text_to_index = {text: idx for idx, text in enumerate(documents)}
 
-print(f"📄 Total chunks: {len(documents)}")
+print(f" Total chunks: {len(documents)}")
 
 # ===================================
-# 2. ÍNDICE TF-IDF MODELO BASE
+#  ÍNDICE TF-IDF MODELO BASE
 # ===================================
 vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
 X = vectorizer.fit_transform(documents)
-print(f"✅ Índice TF-IDF: {X.shape}")
+print(f" Índice TF-IDF: {X.shape}")
 
 # ===================================
-# 3. GROUND TRUTH CORRECTO
+# GROUND TRUTH
 # ===================================
+
 def find_relevant_chunks_corrected(keyword_list, documents, max_chunks=5):
     """Busca en TODOS los documentos, no solo los primeros N"""
     relevant = []
@@ -80,11 +82,11 @@ def find_relevant_chunks_corrected(keyword_list, documents, max_chunks=5):
     
     for i, doc in enumerate(documents):
         doc_lower = doc.lower()
-        # Verificar que contenga TODAS las keywords (más estricto)
+        # Verificar que contenga todas las keywords
         if all(kw in doc_lower for kw in keywords_lower):
             relevant.append(i)
     
-    # Si no hay matches con ALL, buscar con ANY
+    # Si no hay matches con all, buscar con any
     if not relevant:
         for i, doc in enumerate(documents):
             doc_lower = doc.lower()
@@ -105,7 +107,7 @@ keywords_per_query = [
     ["carlisle", "doctor"],
 ]
 
-print("\n🔍 Generando Ground Truth CORREGIDO...")
+print("\n Generando Ground Truth...")
 ground_truth = []
 for i, keywords in enumerate(keywords_per_query):
     relevant = find_relevant_chunks_corrected(keywords, documents, max_chunks=5)
@@ -116,8 +118,9 @@ for i, keywords in enumerate(keywords_per_query):
         print(f"  Ejemplo: {documents[relevant[0]][:100]}...")
 
 # ===================================
-# 4. FUNCIONES DE EVALUACIÓN
+#  FUNCIONES DE EVALUACIÓN
 # ===================================
+
 def recall_at_k(retrieved_indices, relevant_indices):
     if not relevant_indices:
         return 0.0
@@ -149,8 +152,9 @@ def search_tfidf(query, k=5):
     return list(indices), list(scores)
 
 # ===================================
-# 5. GENERACIÓN DE RESPUESTAS
+#  GENERACIÓN DE RESPUESTAS
 # ===================================
+
 def generate_answer(context, query):
     """Genera respuesta usando GPT"""
     prompt = f"""You are a knowledgeable assistant who knows the Twilight Saga.
@@ -175,8 +179,9 @@ Answer:"""
         return f"Error: {e}"
 
 # ===================================
-# 6. EVALUACIÓN MODELO BASE (TF-IDF)
+#  EVALUACIÓN MODELO BASE (TF-IDF)
 # ===================================
+
 def evaluate_base_model(queries, ground_truth, documents, k=5):
     """Evaluación del modelo base con TF-IDF"""
     results = []
@@ -210,8 +215,9 @@ def evaluate_base_model(queries, ground_truth, documents, k=5):
     return results
 
 # ===================================
-# 7. EVALUACIÓN BASELINE (BM25)
+#  EVALUACIÓN BASELINE (BM25)
 # ===================================
+
 def evaluate_baseline(model, queries, ground_truth, k=5):
     """Evaluación específica para RAGBaseline (devuelve dict con 'results')"""
     results = []
@@ -258,8 +264,9 @@ def evaluate_baseline(model, queries, ground_truth, k=5):
     return results
 
 # ===================================
-# 8. EVALUACIÓN MODEL A (FAISS)
+#  EVALUACIÓN MODEL A (FAISS)
 # ===================================
+
 def evaluate_model_a(model, queries, ground_truth, k=5):
     """Evaluación específica para RAGModelA (FAISS)"""
     results = []
@@ -306,8 +313,9 @@ def evaluate_model_a(model, queries, ground_truth, k=5):
     return results
 
 # ===================================
-# 9. EVALUACIÓN MODEL B/C (TF-IDF variants)
+#  EVALUACIÓN MODEL B/C (TF-IDF variants)
 # ===================================
+
 def evaluate_tfidf_model(model, queries, ground_truth, k=5):
     """Evaluación para RAGModelB y RAGModelC (devuelven lista de tuplas)"""
     results = []
@@ -353,7 +361,7 @@ def evaluate_tfidf_model(model, queries, ground_truth, k=5):
     return results
 
 # ===================================
-# 10. EJECUTAR EVALUACIONES
+#  EJECUTAR EVALUACIONES
 # ===================================
 
 # Modelo Base (TF-IDF simple)
@@ -386,7 +394,7 @@ try:
     model_a.prepare_documents(chunk_config="processed_400_100", index_type="flat", batch_size=32)
     results_a = evaluate_model_a(model_a, queries, ground_truth, k=5)
 except Exception as e:
-    print(f"⚠️ Error en Model A: {e}")
+    print(f" Error en Model A: {e}")
     print("Saltando Model A (puede requerir sentence-transformers y faiss)")
     results_a = None
 
@@ -413,8 +421,9 @@ model_c.prepare_documents(chunk_config="processed_400_100")
 results_c = evaluate_tfidf_model(model_c, queries, ground_truth, k=5)
 
 # ===================================
-# 11. COMPARACIÓN FINAL
+#  COMPARACIÓN FINAL
 # ===================================
+
 print("\n" + "="*80)
 print("COMPARACIÓN FINAL")
 print("="*80)
@@ -436,7 +445,7 @@ comparison_data = {
     "MRR_C": [r["mrr"] for r in results_c],
 }
 
-# Agregar Model A si está disponible
+# Agregar Model A 
 if results_a:
     comparison_data["Recall_A"] = [r["recall"] for r in results_a]
     comparison_data["Precision_A"] = [r["precision"] for r in results_a]
@@ -494,14 +503,15 @@ mrr_means.extend([
 print(f"{'MRR':<15} " + " ".join([f"{m:.3f}        " for m in mrr_means]))
 
 # ===================================
-# 12. MOSTRAR RESPUESTAS GENERADAS
+#  MOSTRAR LAS RESPUESTAS GENERADAS
 # ===================================
+
 print("\n" + "="*80)
 print("RESPUESTAS GENERADAS")
 print("="*80)
 
 for idx, query in enumerate(queries):
-    print(f"\n🧠 Query {idx+1}: {query}")
+    print(f"\n Query {idx+1}: {query}")
     print("-" * 80)
     print(f"Base:     {results_base[idx]['answer']}")
     print(f"Baseline: {results_baseline[idx]['answer']}")
@@ -512,14 +522,15 @@ for idx, query in enumerate(queries):
     print("="*80)
 
 # ===================================
-# 13. VISUALIZACIÓN
+#  VISUALIZACIÓN
 # ===================================
+
 try:
     import matplotlib.pyplot as plt
     import matplotlib
     matplotlib.use('TkAgg')
     
-    print("\n📊 Generando visualizaciones...")
+    print("\n Generando visualizaciones...")
     
     query_labels = [f"Q{i+1}" for i in range(len(queries))]
     n_models = 5 if results_a else 4
@@ -560,7 +571,7 @@ try:
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(os.path.join(project_root, 'data', 'comparison_recall.png'), dpi=300, bbox_inches='tight')
-    print("✅ Gráfica guardada: comparison_recall.png")
+    print(" Gráfica guardada: comparison_recall.png")
     plt.show()
     
     # Gráfica 2: Precision
@@ -589,7 +600,7 @@ try:
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(os.path.join(project_root, 'data', 'comparison_precision.png'), dpi=300, bbox_inches='tight')
-    print("✅ Gráfica guardada: comparison_precision.png")
+    print(" Gráfica guardada: comparison_precision.png")
     plt.show()
     
     # Gráfica 3: Resumen de promedios
@@ -630,19 +641,20 @@ try:
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(os.path.join(project_root, 'data', 'comparison_summary.png'), dpi=300, bbox_inches='tight')
-    print("✅ Gráfica guardada: comparison_summary.png")
+    print(" Gráfica guardada: comparison_summary.png")
     plt.show()
     
-    print("\n✅ Todas las visualizaciones generadas exitosamente")
+    print("\n Todas las visualizaciones generadas exitosamente")
     
 except ImportError:
-    print("\n⚠️ matplotlib no disponible. Instalar con: pip install matplotlib")
+    print("\n matplotlib no disponible. Instalar con: pip install matplotlib")
 except Exception as e:
-    print(f"\n❌ Error en visualización: {e}")
+    print(f"\n Error en visualización: {e}")
 
 # ===================================
-# 14. GUARDAR RESULTADOS
+#  GUARDAR RESULTADOS
 # ===================================
+
 print("\n" + "="*80)
 print("GUARDANDO RESULTADOS")
 print("="*80)
@@ -674,14 +686,14 @@ with open(results_path, 'w', encoding='utf-8') as f:
     
     json.dump(results_summary, f, indent=2, ensure_ascii=False, default=convert_to_serializable)
 
-print(f"✅ Resultados guardados en: {results_path}")
+print(f" Resultados guardados en: {results_path}")
 
 csv_path = os.path.join(project_root, 'data', 'evaluation_comparison.csv')
 comparison_df.to_csv(csv_path, index=False)
-print(f"✅ Comparación guardada en: {csv_path}")
+print(f" Comparación guardada en: {csv_path}")
 
 print("\n" + "="*80)
-print("🎉 EVALUACIÓN COMPLETA")
+print(" EVALUACIÓN COMPLETA")
 print("="*80)
 print(f"Modelos evaluados: {len(models_list)}")
 print(f"Queries evaluadas: {len(queries)}")
