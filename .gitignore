@@ -4,3 +4,5 @@ venv/
 env/
 bin/
 bin
+sqlite3
+data/index/chroma/ce9c50c8-def7-4ec8-b90f-928c07ce6034
