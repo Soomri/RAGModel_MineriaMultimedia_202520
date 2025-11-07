@@ -1,8 +1,5 @@
 # ============================================================
-# NOTEBOOK COMPLETO: Evaluación RAG con respuestas estilo chat
-# ============================================================
-# ============================================================
-# EVALUACIÓN RAG CORREGIDA
+# EVALUACIÓN RAG INTERACTIVA
 # ============================================================
 
 import os, sys
@@ -34,6 +31,7 @@ client = AzureOpenAI(
     api_version="2024-12-01-preview",
     azure_endpoint="https://pnl-maestria.openai.azure.com/"
 )
+
 # Paths
 project_root = os.path.abspath("..")
 src_path = os.path.join(project_root, "src")
@@ -58,87 +56,21 @@ for folder in folders:
 
 df = pd.DataFrame.from_records(records)
 documents = df["text"].astype(str).tolist()
-
-# Crear mapeo de texto -> índice para comparación consistente
 text_to_index = {text: idx for idx, text in enumerate(documents)}
 
 print(f" Total chunks: {len(documents)}")
 
 # ===================================
-#  ÍNDICE TF-IDF MODELO BASE
+# ÍNDICE TF-IDF MODELO BASE
 # ===================================
+
 vectorizer = TfidfVectorizer(stop_words="english", max_features=5000)
 X = vectorizer.fit_transform(documents)
-print(f" Índice TF-IDF: {X.shape}")
+print(f"✅ Índice TF-IDF: {X.shape}")
 
 # ===================================
-# GROUND TRUTH
+# FUNCIONES DE BÚSQUEDA Y GENERACIÓN
 # ===================================
-
-def find_relevant_chunks_corrected(keyword_list, documents, max_chunks=5):
-    """Busca en TODOS los documentos, no solo los primeros N"""
-    relevant = []
-    keywords_lower = [kw.lower() for kw in keyword_list]
-    
-    for i, doc in enumerate(documents):
-        doc_lower = doc.lower()
-        # Verificar que contenga todas las keywords
-        if all(kw in doc_lower for kw in keywords_lower):
-            relevant.append(i)
-    
-    # Si no hay matches con all, buscar con any
-    if not relevant:
-        for i, doc in enumerate(documents):
-            doc_lower = doc.lower()
-            if any(kw in doc_lower for kw in keywords_lower):
-                relevant.append(i)
-                if len(relevant) >= max_chunks:
-                    break
-    
-    return relevant[:max_chunks]
-
-queries = [
-    "Who saves Bella from the van?",
-    "Which Cullen family member is a doctor?",
-]
-
-keywords_per_query = [
-    ["edward", "van", "save"],
-    ["carlisle", "doctor"],
-]
-
-print("\n Generando Ground Truth...")
-ground_truth = []
-for i, keywords in enumerate(keywords_per_query):
-    relevant = find_relevant_chunks_corrected(keywords, documents, max_chunks=5)
-    ground_truth.append(relevant)
-    print(f"Query {i+1}: {len(relevant)} chunks relevantes")
-    if relevant:
-        print(f"  Índices: {relevant[:3]}...")
-        print(f"  Ejemplo: {documents[relevant[0]][:100]}...")
-
-# ===================================
-#  FUNCIONES DE EVALUACIÓN
-# ===================================
-
-def recall_at_k(retrieved_indices, relevant_indices):
-    if not relevant_indices:
-        return 0.0
-    hits = len(set(retrieved_indices) & set(relevant_indices))
-    return hits / len(relevant_indices)
-
-def precision_at_k(retrieved_indices, relevant_indices, k=5):
-    if not relevant_indices:
-        return 0.0
-    hits = len(set(retrieved_indices) & set(relevant_indices))
-    return hits / k
-
-def mrr(retrieved_indices, relevant_indices):
-    """Mean Reciprocal Rank"""
-    for rank, idx in enumerate(retrieved_indices, 1):
-        if idx in relevant_indices:
-            return 1.0 / rank
-    return 0.0
 
 @lru_cache(maxsize=128)
 def search_tfidf_cached(query, k=5):
@@ -150,10 +82,6 @@ def search_tfidf_cached(query, k=5):
 def search_tfidf(query, k=5):
     indices, scores = search_tfidf_cached(query, k)
     return list(indices), list(scores)
-
-# ===================================
-#  GENERACIÓN DE RESPUESTAS
-# ===================================
 
 def generate_answer(context, query):
     """Genera respuesta usando GPT"""
@@ -179,528 +107,231 @@ Answer:"""
         return f"Error: {e}"
 
 # ===================================
-#  EVALUACIÓN MODELO BASE (TF-IDF)
+# INICIALIZAR MODELOS
 # ===================================
 
-def evaluate_base_model(queries, ground_truth, documents, k=5):
-    """Evaluación del modelo base con TF-IDF"""
-    results = []
-    
-    for i, query in enumerate(queries):
-        retrieved_indices, scores = search_tfidf(query, k=k)
-        
-        # Métricas
-        recall = recall_at_k(retrieved_indices, ground_truth[i])
-        precision = precision_at_k(retrieved_indices, ground_truth[i], k=k)
-        mrr_score = mrr(retrieved_indices, ground_truth[i])
-        
-        # Generar respuesta
-        context = "\n".join([documents[j] for j in retrieved_indices])
-        answer = generate_answer(context, query)
-        
-        results.append({
-            "query": query,
-            "retrieved_indices": retrieved_indices,
-            "recall": recall,
-            "precision": precision,
-            "mrr": mrr_score,
-            "answer": answer
-        })
-        
-        print(f"\n{'='*80}")
-        print(f"Query: {query}")
-        print(f"Recall@{k}: {recall:.3f} | Precision@{k}: {precision:.3f} | MRR: {mrr_score:.3f}")
-        print(f"Answer: {answer}")
-    
-    return results
-
-# ===================================
-#  EVALUACIÓN BASELINE (BM25)
-# ===================================
-
-def evaluate_baseline(model, queries, ground_truth, k=5):
-    """Evaluación específica para RAGBaseline (devuelve dict con 'results')"""
-    results = []
-    
-    for i, query in enumerate(queries):
-        result = model.query(query, top_k=k, show_details=False)
-        retrieved_data = result["results"]
-        retrieved_texts = [chunk for chunk, _, _ in retrieved_data]
-        
-        # Mapear textos a índices del array base
-        retrieved_indices = []
-        for text in retrieved_texts:
-            if text in text_to_index:
-                retrieved_indices.append(text_to_index[text])
-            else:
-                for doc_idx, doc in enumerate(documents):
-                    if text[:200] in doc or doc[:200] in text:
-                        retrieved_indices.append(doc_idx)
-                        break
-        
-        # Métricas
-        recall = recall_at_k(retrieved_indices, ground_truth[i])
-        precision = precision_at_k(retrieved_indices, ground_truth[i], k=k)
-        mrr_score = mrr(retrieved_indices, ground_truth[i])
-        
-        # Generar respuesta
-        context = "\n".join(retrieved_texts)
-        answer = generate_answer(context, query)
-        
-        results.append({
-            "query": query,
-            "retrieved_indices": retrieved_indices,
-            "recall": recall,
-            "precision": precision,
-            "mrr": mrr_score,
-            "answer": answer
-        })
-        
-        print(f"\n{'='*80}")
-        print(f"Query: {query}")
-        print(f"Recall@{k}: {recall:.3f} | Precision@{k}: {precision:.3f} | MRR: {mrr_score:.3f}")
-        print(f"Answer: {answer}")
-    
-    return results
-
-# ===================================
-#  EVALUACIÓN MODEL A (FAISS)
-# ===================================
-
-def evaluate_model_a(model, queries, ground_truth, k=5):
-    """Evaluación específica para RAGModelA (FAISS)"""
-    results = []
-    
-    for i, query in enumerate(queries):
-        # RAGModelA.query retorna lista de dicts
-        retrieved = model.query(query, top_k=k, show_details=False)
-        retrieved_texts = [r['text'] for r in retrieved]
-        
-        # Mapear textos a índices del array base
-        retrieved_indices = []
-        for text in retrieved_texts:
-            if text in text_to_index:
-                retrieved_indices.append(text_to_index[text])
-            else:
-                for doc_idx, doc in enumerate(documents):
-                    if text[:200] in doc or doc[:200] in text:
-                        retrieved_indices.append(doc_idx)
-                        break
-        
-        # Métricas
-        recall = recall_at_k(retrieved_indices, ground_truth[i])
-        precision = precision_at_k(retrieved_indices, ground_truth[i], k=k)
-        mrr_score = mrr(retrieved_indices, ground_truth[i])
-        
-        # Generar respuesta
-        context = "\n".join(retrieved_texts)
-        answer = generate_answer(context, query)
-        
-        results.append({
-            "query": query,
-            "retrieved_indices": retrieved_indices,
-            "recall": recall,
-            "precision": precision,
-            "mrr": mrr_score,
-            "answer": answer
-        })
-        
-        print(f"\n{'='*80}")
-        print(f"Query: {query}")
-        print(f"Recall@{k}: {recall:.3f} | Precision@{k}: {precision:.3f} | MRR: {mrr_score:.3f}")
-        print(f"Answer: {answer}")
-    
-    return results
-
-# ===================================
-#  EVALUACIÓN MODEL B/C (TF-IDF variants)
-# ===================================
-
-def evaluate_tfidf_model(model, queries, ground_truth, k=5):
-    """Evaluación para RAGModelB y RAGModelC (devuelven lista de tuplas)"""
-    results = []
-    
-    for i, query in enumerate(queries):
-        retrieved = model.query(query, top_k=k)
-        retrieved_texts = [chunk for chunk, _, _ in retrieved]
-        
-        # Mapear textos a índices del array base
-        retrieved_indices = []
-        for text in retrieved_texts:
-            if text in text_to_index:
-                retrieved_indices.append(text_to_index[text])
-            else:
-                for doc_idx, doc in enumerate(documents):
-                    if text[:200] in doc or doc[:200] in text:
-                        retrieved_indices.append(doc_idx)
-                        break
-        
-        # Métricas
-        recall = recall_at_k(retrieved_indices, ground_truth[i])
-        precision = precision_at_k(retrieved_indices, ground_truth[i], k=k)
-        mrr_score = mrr(retrieved_indices, ground_truth[i])
-        
-        # Generar respuesta
-        context = "\n".join(retrieved_texts)
-        answer = generate_answer(context, query)
-        
-        results.append({
-            "query": query,
-            "retrieved_indices": retrieved_indices,
-            "recall": recall,
-            "precision": precision,
-            "mrr": mrr_score,
-            "answer": answer
-        })
-        
-        print(f"\n{'='*80}")
-        print(f"Query: {query}")
-        print(f"Recall@{k}: {recall:.3f} | Precision@{k}: {precision:.3f} | MRR: {mrr_score:.3f}")
-        print(f"Answer: {answer}")
-    
-    return results
-
-# ===================================
-#  EJECUTAR EVALUACIONES
-# ===================================
-
-# Modelo Base (TF-IDF simple)
-print("\n" + "="*80)
-print("EVALUANDO MODELO BASE (TF-IDF)")
-print("="*80)
-results_base = evaluate_base_model(queries, ground_truth, documents, k=5)
+print("\n Inicializando modelos...")
 
 # Baseline (BM25)
-print("\n" + "="*80)
-print("EVALUANDO BASELINE (BM25)")
-print("="*80)
 baseline = RAGBaseline(
     preprocessed_base_dir=BASE_PREPROCESSED,
     k1=1.5,
     b=0.75
 )
 baseline.prepare_documents(chunk_config="processed_400_100")
-results_baseline = evaluate_baseline(baseline, queries, ground_truth, k=5)
+print(" Baseline (BM25) listo")
 
 # Model A (FAISS + Embeddings)
-print("\n" + "="*80)
-print("EVALUANDO MODEL A (FAISS + EMBEDDINGS)")
-print("="*80)
 try:
     model_a = RAGModelA(
         preprocessed_base_dir=BASE_PREPROCESSED,
         use_gpu=False
     )
     model_a.prepare_documents(chunk_config="processed_400_100", index_type="flat", batch_size=32)
-    results_a = evaluate_model_a(model_a, queries, ground_truth, k=5)
+    print(" Model A (FAISS) listo")
+    model_a_available = True
 except Exception as e:
-    print(f" Error en Model A: {e}")
-    print("Saltando Model A (puede requerir sentence-transformers y faiss)")
-    results_a = None
+    print(f"  Model A no disponible: {e}")
+    model_a_available = False
 
-# Model B (TF-IDF + Dedup threshold=0.75)
-print("\n" + "="*80)
-print("EVALUANDO MODEL B (TF-IDF + DEDUP 0.75)")
-print("="*80)
+# Model B (TF-IDF + Dedup 0.75)
 model_b = RAGModelB(
     preprocessed_base_dir=BASE_PREPROCESSED,
     similarity_threshold=0.75
 )
 model_b.prepare_documents(chunk_config="processed_400_100")
-results_b = evaluate_tfidf_model(model_b, queries, ground_truth, k=5)
+print(" Model B (Dedup 0.75) listo")
 
-# Model C (TF-IDF + Dedup threshold=0.85)
-print("\n" + "="*80)
-print("EVALUANDO MODEL C (TF-IDF + DEDUP 0.85)")
-print("="*80)
+# Model C (TF-IDF + Dedup 0.85)
 model_c = RAGModelC(
     preprocessed_base_dir=BASE_PREPROCESSED,
     similarity_threshold=0.85
 )
 model_c.prepare_documents(chunk_config="processed_400_100")
-results_c = evaluate_tfidf_model(model_c, queries, ground_truth, k=5)
+print(" Model C (Dedup 0.85) listo")
 
 # ===================================
-#  COMPARACIÓN FINAL
+# FUNCIÓN PARA PROCESAR QUERY INTERACTIVA
 # ===================================
 
-print("\n" + "="*80)
-print("COMPARACIÓN FINAL")
-print("="*80)
-
-# Crear DataFrame de comparación
-comparison_data = {
-    "Query": [r["query"] for r in results_base],
-    "Recall_Base": [r["recall"] for r in results_base],
-    "Recall_Baseline": [r["recall"] for r in results_baseline],
-    "Recall_B": [r["recall"] for r in results_b],
-    "Recall_C": [r["recall"] for r in results_c],
-    "Precision_Base": [r["precision"] for r in results_base],
-    "Precision_Baseline": [r["precision"] for r in results_baseline],
-    "Precision_B": [r["precision"] for r in results_b],
-    "Precision_C": [r["precision"] for r in results_c],
-    "MRR_Base": [r["mrr"] for r in results_base],
-    "MRR_Baseline": [r["mrr"] for r in results_baseline],
-    "MRR_B": [r["mrr"] for r in results_b],
-    "MRR_C": [r["mrr"] for r in results_c],
-}
-
-# Agregar Model A 
-if results_a:
-    comparison_data["Recall_A"] = [r["recall"] for r in results_a]
-    comparison_data["Precision_A"] = [r["precision"] for r in results_a]
-    comparison_data["MRR_A"] = [r["mrr"] for r in results_a]
-
-comparison_df = pd.DataFrame(comparison_data)
-print(comparison_df.to_string(index=False))
-
-# Promedios
-print("\n" + "="*80)
-print("PROMEDIOS")
-print("="*80)
-
-models_list = ['Base', 'Baseline', 'Model A', 'Model B', 'Model C'] if results_a else ['Base', 'Baseline', 'Model B', 'Model C']
-print(f"{'Metric':<15} " + " ".join([f"{m:<12}" for m in models_list]))
-print("-" * (15 + 13 * len(models_list)))
-
-# Recall
-recall_means = [
-    comparison_df['Recall_Base'].mean(),
-    comparison_df['Recall_Baseline'].mean(),
-]
-if results_a:
-    recall_means.append(comparison_df['Recall_A'].mean())
-recall_means.extend([
-    comparison_df['Recall_B'].mean(),
-    comparison_df['Recall_C'].mean()
-])
-print(f"{'Recall@5':<15} " + " ".join([f"{m:.3f}        " for m in recall_means]))
-
-# Precision
-precision_means = [
-    comparison_df['Precision_Base'].mean(),
-    comparison_df['Precision_Baseline'].mean(),
-]
-if results_a:
-    precision_means.append(comparison_df['Precision_A'].mean())
-precision_means.extend([
-    comparison_df['Precision_B'].mean(),
-    comparison_df['Precision_C'].mean()
-])
-print(f"{'Precision@5':<15} " + " ".join([f"{m:.3f}        " for m in precision_means]))
-
-# MRR
-mrr_means = [
-    comparison_df['MRR_Base'].mean(),
-    comparison_df['MRR_Baseline'].mean(),
-]
-if results_a:
-    mrr_means.append(comparison_df['MRR_A'].mean())
-mrr_means.extend([
-    comparison_df['MRR_B'].mean(),
-    comparison_df['MRR_C'].mean()
-])
-print(f"{'MRR':<15} " + " ".join([f"{m:.3f}        " for m in mrr_means]))
-
-# ===================================
-#  MOSTRAR LAS RESPUESTAS GENERADAS
-# ===================================
-
-print("\n" + "="*80)
-print("RESPUESTAS GENERADAS")
-print("="*80)
-
-for idx, query in enumerate(queries):
-    print(f"\n Query {idx+1}: {query}")
-    print("-" * 80)
-    print(f"Base:     {results_base[idx]['answer']}")
-    print(f"Baseline: {results_baseline[idx]['answer']}")
-    if results_a:
-        print(f"Model A:  {results_a[idx]['answer']}")
-    print(f"Model B:  {results_b[idx]['answer']}")
-    print(f"Model C:  {results_c[idx]['answer']}")
+def process_user_query(query, k=5, show_chunks=False):
+    """
+    Procesa una query del usuario usando todos los modelos disponibles
+    """
+    print("\n" + "="*80)
+    print(f"🔍 PREGUNTA: {query}")
     print("="*80)
-
-# ===================================
-#  VISUALIZACIÓN
-# ===================================
-
-try:
-    import matplotlib.pyplot as plt
-    import matplotlib
-    matplotlib.use('TkAgg')
     
-    print("\n Generando visualizaciones...")
+    results = {}
     
-    query_labels = [f"Q{i+1}" for i in range(len(queries))]
-    n_models = 5 if results_a else 4
-    width = 0.15
-    x = np.arange(len(queries))
-    
-    colors = {
-        'Base': '#2ecc71',
-        'Baseline': '#f39c12',
-        'Model A': '#3498db',
-        'Model B': '#9b59b6',
-        'Model C': '#e74c3c'
+    # 1. MODELO BASE (TF-IDF)
+    print("\n📊 Modelo Base (TF-IDF)...")
+    retrieved_indices, scores = search_tfidf(query, k=k)
+    context = "\n".join([documents[i] for i in retrieved_indices])
+    answer = generate_answer(context, query)
+    results['base'] = {
+        'answer': answer,
+        'retrieved_indices': retrieved_indices,
+        'scores': scores
     }
+    print(f"   Respuesta: {answer}")
     
-    # Gráfica 1: Recall
-    fig, ax = plt.subplots(figsize=(12,6))
-    offset = -width * (n_models//2)
+    # 2. BASELINE (BM25)
+    print("\n📊 Baseline (BM25)...")
+    result = baseline.query(query, top_k=k, show_details=False)
+    retrieved_data = result["results"]
+    retrieved_texts = [chunk for chunk, _, _ in retrieved_data]
+    context = "\n".join(retrieved_texts)
+    answer = generate_answer(context, query)
+    results['baseline'] = {
+        'answer': answer,
+        'retrieved_texts': retrieved_texts
+    }
+    print(f"   Respuesta: {answer}")
     
-    ax.bar(x + offset, comparison_df['Recall_Base'], width, label='Base (TF-IDF)', color=colors['Base'])
-    offset += width
-    ax.bar(x + offset, comparison_df['Recall_Baseline'], width, label='Baseline (BM25)', color=colors['Baseline'])
-    offset += width
+    # 3. MODEL A (FAISS)
+    if model_a_available:
+        print("\n📊 Model A (FAISS + Embeddings)...")
+        retrieved = model_a.query(query, top_k=k, show_details=False)
+        retrieved_texts = [r['text'] for r in retrieved]
+        context = "\n".join(retrieved_texts)
+        answer = generate_answer(context, query)
+        results['model_a'] = {
+            'answer': answer,
+            'retrieved_texts': retrieved_texts
+        }
+        print(f"   Respuesta: {answer}")
     
-    if results_a:
-        ax.bar(x + offset, comparison_df['Recall_A'], width, label='Model A (FAISS)', color=colors['Model A'])
-        offset += width
+    # 4. MODEL B (TF-IDF + Dedup 0.75)
+    print("\n📊 Model B (TF-IDF + Dedup 0.75)...")
+    retrieved = model_b.query(query, top_k=k)
+    retrieved_texts = [chunk for chunk, _, _ in retrieved]
+    context = "\n".join(retrieved_texts)
+    answer = generate_answer(context, query)
+    results['model_b'] = {
+        'answer': answer,
+        'retrieved_texts': retrieved_texts
+    }
+    print(f"   Respuesta: {answer}")
     
-    ax.bar(x + offset, comparison_df['Recall_B'], width, label='Model B (Dedup 0.75)', color=colors['Model B'])
-    offset += width
-    ax.bar(x + offset, comparison_df['Recall_C'], width, label='Model C (Dedup 0.85)', color=colors['Model C'])
+    # 5. MODEL C (TF-IDF + Dedup 0.85)
+    print("\n📊 Model C (TF-IDF + Dedup 0.85)...")
+    retrieved = model_c.query(query, top_k=k)
+    retrieved_texts = [chunk for chunk, _, _ in retrieved]
+    context = "\n".join(retrieved_texts)
+    answer = generate_answer(context, query)
+    results['model_c'] = {
+        'answer': answer,
+        'retrieved_texts': retrieved_texts
+    }
+    print(f"   Respuesta: {answer}")
     
-    ax.set_xticks(x)
-    ax.set_xticklabels(query_labels)
-    ax.set_ylabel('Recall@5')
-    ax.set_ylim([0, 1])
-    ax.set_title('Comparación Recall@5 por Consulta', fontsize=14, fontweight='bold')
-    ax.legend()
-    ax.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'data', 'comparison_recall.png'), dpi=300, bbox_inches='tight')
-    print(" Gráfica guardada: comparison_recall.png")
-    plt.show()
+    # Mostrar resumen
+    print("\n" + "="*80)
+    print(" RESUMEN DE RESPUESTAS")
+    print("="*80)
+    print(f"\n🔹 Base (TF-IDF):      {results['base']['answer']}")
+    print(f"🔹 Baseline (BM25):    {results['baseline']['answer']}")
+    if model_a_available:
+        print(f"🔹 Model A (FAISS):    {results['model_a']['answer']}")
+    print(f"🔹 Model B (Dedup75):  {results['model_b']['answer']}")
+    print(f"🔹 Model C (Dedup85):  {results['model_c']['answer']}")
     
-    # Gráfica 2: Precision
-    fig, ax = plt.subplots(figsize=(12,6))
-    offset = -width * (n_models//2)
+    # Mostrar chunks recuperados si se solicita
+    if show_chunks:
+        print("\n" + "="*80)
+        print("CHUNKS RECUPERADOS (Primeros 3)")
+        print("="*80)
+        for i, idx in enumerate(retrieved_indices[:3], 1):
+            print(f"\n[Chunk {i}] (Score: {scores[i-1]:.4f})")
+            print(f"{documents[idx][:300]}...")
     
-    ax.bar(x + offset, comparison_df['Precision_Base'], width, label='Base (TF-IDF)', color=colors['Base'])
-    offset += width
-    ax.bar(x + offset, comparison_df['Precision_Baseline'], width, label='Baseline (BM25)', color=colors['Baseline'])
-    offset += width
-    
-    if results_a:
-        ax.bar(x + offset, comparison_df['Precision_A'], width, label='Model A (FAISS)', color=colors['Model A'])
-        offset += width
-    
-    ax.bar(x + offset, comparison_df['Precision_B'], width, label='Model B (Dedup 0.75)', color=colors['Model B'])
-    offset += width
-    ax.bar(x + offset, comparison_df['Precision_C'], width, label='Model C (Dedup 0.85)', color=colors['Model C'])
-    
-    ax.set_xticks(x)
-    ax.set_xticklabels(query_labels)
-    ax.set_ylabel('Precision@5')
-    ax.set_ylim([0, 1])
-    ax.set_title('Comparación Precision@5 por Consulta', fontsize=14, fontweight='bold')
-    ax.legend()
-    ax.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'data', 'comparison_precision.png'), dpi=300, bbox_inches='tight')
-    print(" Gráfica guardada: comparison_precision.png")
-    plt.show()
-    
-    # Gráfica 3: Resumen de promedios
-    fig, ax = plt.subplots(figsize=(14,7))
-    metrics = ['Recall@5', 'Precision@5', 'MRR']
-    
-    x_pos = np.arange(len(metrics))
-    width = 0.15
-    offset = -width * (n_models//2)
-    
-    ax.bar(x_pos + offset, recall_means[:1] + precision_means[:1] + mrr_means[:1], 
-           width, label='Base (TF-IDF)', color=colors['Base'])
-    offset += width
-    
-    ax.bar(x_pos + offset, [recall_means[1], precision_means[1], mrr_means[1]], 
-           width, label='Baseline (BM25)', color=colors['Baseline'])
-    offset += width
-    
-    if results_a:
-        ax.bar(x_pos + offset, [recall_means[2], precision_means[2], mrr_means[2]], 
-               width, label='Model A (FAISS)', color=colors['Model A'])
-        offset += width
-    
-    b_idx = 2 if results_a else 1
-    ax.bar(x_pos + offset, [recall_means[b_idx+1], precision_means[b_idx+1], mrr_means[b_idx+1]], 
-           width, label='Model B (Dedup 0.75)', color=colors['Model B'])
-    offset += width
-    
-    ax.bar(x_pos + offset, [recall_means[-1], precision_means[-1], mrr_means[-1]], 
-           width, label='Model C (Dedup 0.85)', color=colors['Model C'])
-    
-    ax.set_xticks(x_pos)
-    ax.set_xticklabels(metrics)
-    ax.set_ylabel('Score')
-    ax.set_ylim([0, 1])
-    ax.set_title('Comparación de Métricas Promedio - Todos los Modelos', fontsize=14, fontweight='bold')
-    ax.legend()
-    ax.grid(axis='y', alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(os.path.join(project_root, 'data', 'comparison_summary.png'), dpi=300, bbox_inches='tight')
-    print(" Gráfica guardada: comparison_summary.png")
-    plt.show()
-    
-    print("\n Todas las visualizaciones generadas exitosamente")
-    
-except ImportError:
-    print("\n matplotlib no disponible. Instalar con: pip install matplotlib")
-except Exception as e:
-    print(f"\n Error en visualización: {e}")
+    return results
 
 # ===================================
-#  GUARDAR RESULTADOS
+# MODO INTERACTIVO
 # ===================================
 
-print("\n" + "="*80)
-print("GUARDANDO RESULTADOS")
-print("="*80)
-
-results_summary = {
-    'queries': queries,
-    'ground_truth': ground_truth,
-    'base': results_base,
-    'baseline': results_baseline,
-    'model_b': results_b,
-    'model_c': results_c,
-    'comparison': comparison_df.to_dict()
-}
-
-if results_a:
-    results_summary['model_a'] = results_a
-
-import json
-results_path = os.path.join(project_root, 'data', 'evaluation_results.json')
-with open(results_path, 'w', encoding='utf-8') as f:
-    def convert_to_serializable(obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return obj
+def interactive_mode():
+    """
+    Modo interactivo para que el usuario ingrese preguntas
+    """
+    print("\n" + "="*80)
+    print("MODO INTERACTIVO RAG")
+    print("="*80)
+    print("\nIngresa tus preguntas sobre Twilight Saga.")
+    print("Comandos especiales:")
+    print("  • 'salir' o 'exit' - Terminar el programa")
+    print("  • 'chunks' - Mostrar chunks recuperados en la próxima consulta")
+    print("  • 'help' - Mostrar esta ayuda")
+    print("="*80)
     
-    json.dump(results_summary, f, indent=2, ensure_ascii=False, default=convert_to_serializable)
+    show_chunks = False
+    
+    while True:
+        print("\n")
+        user_input = input("💬 Tu pregunta: ").strip()
+        
+        if not user_input:
+            continue
+        
+        # Comandos especiales
+        if user_input.lower() in ['salir', 'exit', 'quit']:
+            print("\n👋 ¡Hasta luego!")
+            break
+        
+        if user_input.lower() == 'help':
+            print("\n📖 Comandos disponibles:")
+            print("  • 'salir' o 'exit' - Terminar")
+            print("  • 'chunks' - Toggle mostrar chunks")
+            print("  • 'help' - Esta ayuda")
+            continue
+        
+        if user_input.lower() == 'chunks':
+            show_chunks = not show_chunks
+            status = "activado" if show_chunks else "desactivado ❌"
+            print(f"\n📄 Mostrar chunks: {status}")
+            continue
+        
+        # Procesar la pregunta
+        try:
+            process_user_query(user_input, k=5, show_chunks=show_chunks)
+        except KeyboardInterrupt:
+            print("\n\n  Operación cancelada")
+            break
+        except Exception as e:
+            print(f"\n Error procesando la pregunta: {e}")
+            import traceback
+            traceback.print_exc()
 
-print(f" Resultados guardados en: {results_path}")
+# ===================================
+# PUNTO DE ENTRADA
+# ===================================
 
-csv_path = os.path.join(project_root, 'data', 'evaluation_comparison.csv')
-comparison_df.to_csv(csv_path, index=False)
-print(f" Comparación guardada en: {csv_path}")
-
-print("\n" + "="*80)
-print(" EVALUACIÓN COMPLETA")
-print("="*80)
-print(f"Modelos evaluados: {len(models_list)}")
-print(f"Queries evaluadas: {len(queries)}")
-print(f"Archivos generados:")
-print(f"  • evaluation_results.json")
-print(f"  • evaluation_comparison.csv")
-print(f"  • comparison_recall.png")
-print(f"  • comparison_precision.png")
-print(f"  • comparison_summary.png")
-print("="*80)
+if __name__ == "__main__":
+    print("\n" + "="*80)
+    print(" SISTEMA RAG - TWILIGHT SAGA")
+    print("="*80)
+    print(f"\n📚 Corpus: {len(documents)} chunks")
+    print(f" Modelos disponibles: {4 if model_a_available else 3}")
+    
+    # Puedes elegir entre modo interactivo o evaluar queries predefinidas
+    print("\n¿Qué deseas hacer?")
+    print("1. Modo interactivo (ingresar preguntas)")
+    print("2. Evaluación con queries predefinidas")
+    
+    choice = input("\nElige una opción (1 o 2): ").strip()
+    
+    if choice == "1":
+        interactive_mode()
+    else:
+        # Código original de evaluación
+        queries = [
+            "Who saves Bella from the van?",
+            "Which Cullen family member is a doctor?",
+        ]
+        
+        print("\n Ejecutando evaluación con queries predefinidas...")
+        for query in queries:
+            process_user_query(query, k=5, show_chunks=True)
+            time.sleep(1)  # Pausa entre queries
